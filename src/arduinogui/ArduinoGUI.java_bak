@@ -1,0 +1,138 @@
+import com.fazecast.jSerialComm.*;
+import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.geometry.Insets;
+import javafx.scene.Scene;
+import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuBar;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
+import javafx.scene.control.TextArea;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
+import java.util.Timer;
+import java.util.TimerTask;
+
+public class ArduinoGUI extends Application {
+
+    private SerialPort selectedPort;
+    private TextArea dataTextArea;
+    private boolean readingData = false;
+    private SerialPort serialPort;
+
+    public static void main(String[] args) {
+        launch(args);
+    }
+
+    @Override
+    public void start(Stage primaryStage) {
+        BorderPane root = new BorderPane();
+
+        // Create and set up the menu bar
+        MenuBar menuBar = new MenuBar();
+        menuBar.prefWidthProperty().bind(primaryStage.widthProperty());
+        root.setTop(menuBar);
+
+        // File menu - new, save, print, and exit
+        Menu fileMenu = new Menu("File");
+        MenuItem newMenuItem = new MenuItem("New");
+        MenuItem saveMenuItem = new MenuItem("Save");
+        MenuItem printMenuItem = new MenuItem("Print");
+        MenuItem exitMenuItem = new MenuItem("Exit");
+        
+        // Set the action for the exit menu item
+        exitMenuItem.setOnAction(actionEvent -> Platform.exit());
+   
+        // Add menu items to the menu bar
+        menuBar.getMenus().addAll(fileMenu);
+
+        // Add menu items to the file menu
+        fileMenu.getItems().addAll(newMenuItem, saveMenuItem, printMenuItem,
+            new SeparatorMenuItem(), exitMenuItem);
+
+        // Create UI elements
+        Label portLabel = new Label("Select Port:");
+        ComboBox<SerialPort> portComboBox = new ComboBox<>();
+        Button connectButton = new Button("Connect/Disconnect");
+        dataTextArea = new TextArea();
+
+        // Populate the port ComboBox with available serial ports
+        SerialPort[] ports = SerialPort.getCommPorts();
+        portComboBox.getItems().addAll(ports);
+
+        // Set up the "Connect" button action
+        connectButton.setOnAction(event -> {
+            selectedPort = portComboBox.getValue();
+            if (selectedPort != null) {
+                toggleReading();
+            }
+        });
+
+        // Create a VBox to hold UI elements
+        VBox userSpaceBox = new VBox(portLabel, portComboBox, connectButton, dataTextArea);
+        userSpaceBox.setPadding(new Insets(10));
+        userSpaceBox.setSpacing(10);
+
+        // Set up the scene and stage
+        root.setTop(menuBar);
+        root.setLeft(userSpaceBox);
+        Scene scene = new Scene(root, 400, 300);
+        primaryStage.setTitle("Serial Data Display");
+        primaryStage.setScene(scene);
+        primaryStage.show();
+    }
+
+    // Toggle reading data from the serial port
+    private void toggleReading() {
+        if (!readingData) {
+            startReading();
+        } else {
+            stopReading();
+        }
+    }
+
+    // Start reading data from the serial port
+    private void startReading() {
+        readingData = true;
+        serialPort = selectedPort;
+
+        if (serialPort.openPort()) {
+            // Configure serial port parameters
+            serialPort.setComPortParameters(9600, 8, SerialPort.ONE_STOP_BIT, SerialPort.NO_PARITY);
+
+            // Set up a timer to read data periodically
+            Timer timer = new Timer();
+            timer.scheduleAtFixedRate(new TimerTask() {
+                @Override
+                public void run() {
+                    if (serialPort.bytesAvailable() > 0) {
+                        byte[] newData = new byte[serialPort.bytesAvailable()];
+                        int numBytes = serialPort.readBytes(newData, newData.length);
+                        String receivedData = new String(newData, 0, numBytes);
+                        // Update the UI thread with received data
+                        Platform.runLater(() -> dataTextArea.appendText(receivedData));
+                    }
+                }
+            }, 0, 1000); // Check every 1 second
+        } else {
+            System.out.println("Failed to open the COM port.");
+        }
+    }
+
+    // Stop reading data from the serial port
+    private void stopReading() {
+        readingData = false;
+        if (serialPort != null && serialPort.isOpen()) {
+            serialPort.closePort();
+        }
+    }
+
+    @Override
+    public void stop() {
+        stopReading();
+    }
+}
