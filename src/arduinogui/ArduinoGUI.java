@@ -1,4 +1,5 @@
 import com.fazecast.jSerialComm.*;
+import java.io.IOException;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -16,6 +17,9 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import javafx.scene.control.TextField;
 
 public class ArduinoGUI extends Application {
 
@@ -23,6 +27,8 @@ public class ArduinoGUI extends Application {
     private TextArea dataTextArea;
     private boolean readingData = false;
     private SerialPort serialPort;
+    private TextField sendDataField; // Added TextField
+    private Button sendButton; // Added Button
 
     public static void main(String[] args) {
         launch(args);
@@ -34,7 +40,8 @@ public class ArduinoGUI extends Application {
 
         // Create and set up the menu bar
         MenuBar menuBar = new MenuBar();
-        menuBar.prefWidthProperty().bind(primaryStage.widthProperty());
+        menuBar.prefWidthProperty().bind(
+                primaryStage.widthProperty());
         root.setTop(menuBar);
 
         // File menu - new, save, print, and exit
@@ -51,7 +58,8 @@ public class ArduinoGUI extends Application {
         menuBar.getMenus().addAll(fileMenu);
 
         // Add menu items to the file menu
-        fileMenu.getItems().addAll(newMenuItem, saveMenuItem, printMenuItem,
+        fileMenu.getItems().addAll(newMenuItem, 
+                saveMenuItem, printMenuItem,
             new SeparatorMenuItem(), exitMenuItem);
 
         // Create UI elements
@@ -59,6 +67,8 @@ public class ArduinoGUI extends Application {
         ComboBox<SerialPort> portComboBox = new ComboBox<>();
         Button connectButton = new Button("Connect/Disconnect");
         dataTextArea = new TextArea();
+        sendDataField = new TextField(); // Initialize the text field
+        sendButton = new Button("Send"); // Initialize the send button
 
         // Populate the port ComboBox with available serial ports
         SerialPort[] ports = SerialPort.getCommPorts();
@@ -71,9 +81,22 @@ public class ArduinoGUI extends Application {
                 toggleReading();
             }
         });
+        
+        // Set up the "Send" button action
+        sendButton.setOnAction(event -> {
+            dataTextArea.clear();
+            String dataToSend = sendDataField.getText();
+            if (!dataToSend.isEmpty() && serialPort.isOpen()) {
+                serialPort.writeBytes(dataToSend.getBytes(), 
+                            dataToSend.length());
+                    sendDataField.clear();
+            }
+        });
 
         // Create a VBox to hold UI elements
-        VBox userSpaceBox = new VBox(portLabel, portComboBox, connectButton, dataTextArea);
+        VBox userSpaceBox = new VBox(portLabel, portComboBox, 
+                connectButton, dataTextArea, 
+                sendDataField, sendButton);
         userSpaceBox.setPadding(new Insets(10));
         userSpaceBox.setSpacing(10);
 
@@ -102,7 +125,8 @@ public class ArduinoGUI extends Application {
 
         if (serialPort.openPort()) {
             // Configure serial port parameters
-            serialPort.setComPortParameters(9600, 8, SerialPort.ONE_STOP_BIT, SerialPort.NO_PARITY);
+            serialPort.setComPortParameters(9600, 8, 
+                    SerialPort.ONE_STOP_BIT, SerialPort.NO_PARITY);
 
             // Set up a timer to read data periodically
             Timer timer = new Timer();
